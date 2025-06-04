@@ -5,7 +5,8 @@ import {
   FileChartColumn, 
   FileChartPie,
   DatabaseZap,
-  Brain
+  Brain,
+  Calendar
 } from "lucide-react";
 import {
   Sidebar,
@@ -68,6 +69,13 @@ const menuItems = [
     description: "AI Document Processing",
     color: "text-neon-green",
   },
+  {
+    title: "Timeline Generator",
+    icon: Calendar,
+    id: "timeline",
+    description: "Custom Timeline/Milestone",
+    color: "text-neon-orange",
+  },
 ];
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
@@ -81,9 +89,9 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-neon-blue glow-text">
-                Prism
+                DataVista
               </h2>
-              <p className="text-xs text-gray-400">Data Nexus</p>
+              <p className="text-xs text-gray-400">Analytics Suite</p>
             </div>
           </div>
           <SidebarTrigger className="text-neon-blue hover:text-neon-purple transition-colors" />

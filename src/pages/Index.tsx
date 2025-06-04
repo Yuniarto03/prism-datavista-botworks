@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -8,6 +9,7 @@ import { DataVisualization } from "@/components/DataVisualization";
 import { FileUpload } from "@/components/FileUpload";
 import { AIDocumentProcessor } from "@/components/AIDocumentProcessor";
 import { ChatBot } from "@/components/ChatBot";
+import { TimelineGenerator } from "@/components/TimelineGenerator";
 import * as XLSX from 'xlsx';
 import { AppSettings } from "@/components/AppSettings";
 
@@ -108,6 +110,8 @@ const Index = () => {
         return <DataVisualization data={uploadedData} />;
       case "documents":
         return <AIDocumentProcessor />;
+      case "timeline":
+        return <TimelineGenerator data={uploadedData} />;
       default:
         return <FileUpload onFileUpload={handleFileUpload} />;
     }
@@ -124,7 +128,7 @@ const Index = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-3xl font-bold text-neon-blue glow-text mb-2">
-                      Prism Data Nexus
+                      Data on-demand
                     </h1>
                     <p className="text-gray-400">
                       Advanced Analytics & Real-time Data Processing Platform

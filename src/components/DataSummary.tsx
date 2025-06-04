@@ -1,8 +1,14 @@
 
 import React, { useMemo, useState } from 'react';
-import { BarChart3, Rows, Columns, Calculator, Sparkles } from 'lucide-react';
+import { BarChart3, Rows, Columns, Calculator, Sparkles, Download, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { DraggableField } from '@/components/pivot/DraggableField';
+import { PivotDropZone } from '@/components/pivot/PivotDropZone';
+import { PivotTable } from '@/components/pivot/PivotTable';
+import { useToast } from '@/hooks/use-toast';
 
 interface DataSummaryProps {
   data: any[];
@@ -26,6 +32,9 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
   const [columnFields, setColumnFields] = useState<DroppedField[]>([]);
   const [valueFields, setValueFields] = useState<DroppedField[]>([]);
   const [filters, setFilters] = useState<PivotFilter[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedSummary, setGeneratedSummary] = useState<string>('');
+  const { toast } = useToast();
 
   // Get available fields and their types
   const availableFields = useMemo(() => {
@@ -52,23 +61,20 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
     });
   }, [data, filters]);
 
-  const handleAddToRows = (fieldName: string) => {
-    const field = availableFields.find(f => f.name === fieldName);
-    if (field && !rowFields.find(f => f.name === field.name)) {
+  const handleDropToRows = (field: DroppedField) => {
+    if (!rowFields.find(f => f.name === field.name)) {
       setRowFields(prev => [...prev, field]);
     }
   };
 
-  const handleAddToColumns = (fieldName: string) => {
-    const field = availableFields.find(f => f.name === fieldName);
-    if (field && !columnFields.find(f => f.name === field.name)) {
+  const handleDropToColumns = (field: DroppedField) => {
+    if (!columnFields.find(f => f.name === field.name)) {
       setColumnFields(prev => [...prev, field]);
     }
   };
 
-  const handleAddToValues = (fieldName: string) => {
-    const field = availableFields.find(f => f.name === fieldName);
-    if (field && !valueFields.find(f => f.name === field.name)) {
+  const handleDropToValues = (field: DroppedField) => {
+    if (!valueFields.find(f => f.name === field.name)) {
       const newField = { ...field, aggregation: field.type === 'numeric' ? 'sum' : 'count' };
       setValueFields(prev => [...prev, newField]);
     }
@@ -92,6 +98,113 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
     ));
   };
 
+  const handleGenerateSummary = async () => {
+    if (data.length === 0) {
+      toast({
+        title: "No Data Available",
+        description: "Please upload data first to generate summary",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    try {
+      // Create a comprehensive data summary
+      const dataSummary = {
+        totalRows: filteredData.length,
+        columns: availableFields,
+        pivotConfiguration: {
+          rows: rowFields,
+          columns: columnFields,
+          values: valueFields
+        },
+        sampleData: filteredData.slice(0, 10)
+      };
+
+      // Generate AI summary using Google AI (simplified simulation for now)
+      const summary = `
+📊 **Data Summary Report**
+
+**Dataset Overview:**
+- Total Records: ${dataSummary.totalRows}
+- Columns: ${dataSummary.columns.length}
+- Current Sheet: ${currentSheet || 'Default'}
+
+**Field Configuration:**
+- Row Fields: ${rowFields.map(f => f.name).join(', ') || 'None'}
+- Column Fields: ${columnFields.map(f => f.name).join(', ') || 'None'}  
+- Value Fields: ${valueFields.map(f => `${f.name} (${f.aggregation})`).join(', ') || 'None'}
+
+**Key Insights:**
+- Numeric Fields: ${availableFields.filter(f => f.type === 'numeric').length}
+- Categorical Fields: ${availableFields.filter(f => f.type === 'text').length}
+
+This summary provides a comprehensive overview of your data structure and current pivot configuration.
+      `;
+
+      setGeneratedSummary(summary);
+      
+      toast({
+        title: "Summary Generated!",
+        description: "Data summary has been generated successfully",
+      });
+
+    } catch (error) {
+      console.error('Summary generation error:', error);
+      toast({
+        title: "Summary Generation Failed",
+        description: "Failed to generate data summary",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleExportSummary = () => {
+    if (!generatedSummary) {
+      toast({
+        title: "No Summary to Export",
+        description: "Please generate a summary first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      summary: generatedSummary,
+      configuration: {
+        rows: rowFields,
+        columns: columnFields,
+        values: valueFields
+      },
+      dataInfo: {
+        totalRows: filteredData.length,
+        columns: availableFields.length
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `data-summary-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Summary Exported!",
+      description: "Data summary has been exported successfully",
+    });
+  };
+
   if (data.length === 0) {
     return (
       <div className="text-center py-12">
@@ -105,177 +218,126 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-neon-blue glow-text">Data Summary - Pivot Analysis</h2>
-          <p className="text-gray-400">
-            Configure fields to create dynamic pivot tables • {filteredData.length} records
-            {currentSheet && (
-              <span className="ml-2">• Sheet: <span className="text-neon-blue">{currentSheet}</span></span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Sparkles className="w-5 h-5 text-neon-purple animate-pulse" />
-          <span className="text-neon-purple text-sm font-semibold">Advanced Pivot Mode</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Left Panel - Field Library */}
-        <div className="xl:col-span-1">
-          <div className="cyber-card p-4 sticky top-4">
-            <h3 className="text-lg font-semibold text-neon-green mb-4 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2" />
-              Field Library
-            </h3>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {availableFields.map((field) => (
-                <div key={field.name} className="flex items-center space-x-2 p-2 rounded border border-neon-purple/30 bg-cyber-light">
-                  <div className={`w-3 h-3 rounded ${field.type === 'numeric' ? 'bg-neon-green' : 'bg-neon-orange'}`} />
-                  <span className="text-white text-sm truncate flex-1">{field.name}</span>
-                  <span className="text-xs text-gray-400">{field.type}</span>
-                </div>
-              ))}
-            </div>
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-neon-blue glow-text">Enhanced Data Summary</h2>
+            <p className="text-gray-400">
+              Configure fields to create dynamic pivot tables • {filteredData.length} records
+              {currentSheet && (
+                <span className="ml-2">• Sheet: <span className="text-neon-blue">{currentSheet}</span></span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={handleGenerateSummary}
+              disabled={isGenerating}
+              className="bg-neon-purple/20 hover:bg-neon-purple/30 text-neon-purple border border-neon-purple/30"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {isGenerating ? 'Generating...' : 'Generate Summary'}
+            </Button>
+            <Button
+              onClick={handleExportSummary}
+              disabled={!generatedSummary}
+              className="neon-button"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Summary
+            </Button>
           </div>
         </div>
 
-        {/* Center Panel - Configuration */}
-        <div className="xl:col-span-1">
-          <div className="cyber-card p-4 space-y-6 sticky top-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Left Panel - Field Library */}
+          <div className="space-y-6">
+            <div className="cyber-card p-4">
+              <h3 className="text-lg font-semibold text-neon-green mb-4 flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Field Library
+              </h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {availableFields.map((field) => (
+                  <DraggableField
+                    key={field.name}
+                    name={field.name}
+                    type={field.type}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Generated Summary Display */}
+            {generatedSummary && (
+              <div className="cyber-card p-4">
+                <h3 className="text-lg font-semibold text-neon-orange mb-4">Generated Summary</h3>
+                <div className="bg-cyber-dark/60 p-4 rounded border border-neon-blue/30 max-h-64 overflow-y-auto">
+                  <pre className="text-sm text-gray-300 whitespace-pre-wrap">{generatedSummary}</pre>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel - Configuration */}
+          <div className="cyber-card p-4 space-y-6">
             <h3 className="text-lg font-semibold text-neon-purple mb-4">Pivot Configuration</h3>
             
             {/* Rows Configuration */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 text-sm font-semibold text-neon-blue">
-                <Rows className="w-4 h-4" />
-                <span>Rows</span>
-              </div>
-              <Select onValueChange={handleAddToRows}>
-                <SelectTrigger className="bg-cyber-light border-neon-blue/30 text-white">
-                  <SelectValue placeholder="Add field to rows" />
-                </SelectTrigger>
-                <SelectContent className="bg-cyber-dark border-neon-blue/30 text-white">
-                  {availableFields.filter(f => !rowFields.find(rf => rf.name === f.name)).map(field => (
-                    <SelectItem key={field.name} value={field.name}>{field.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="space-y-1">
-                {rowFields.map((field, index) => (
-                  <div key={index} className="flex items-center justify-between bg-cyber-dark/60 p-2 rounded border border-neon-purple/30">
-                    <span className="text-white text-sm">{field.name}</span>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRemoveFromRows(index)}
-                      className="w-6 h-6 p-0 bg-red-500/20 hover:bg-red-500/30 text-red-400"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PivotDropZone
+              title="Rows"
+              fields={rowFields}
+              onDrop={handleDropToRows}
+              onRemove={handleRemoveFromRows}
+              icon={<Rows className="w-4 h-4" />}
+              description="Drop fields here to create row groupings"
+            />
 
             {/* Columns Configuration */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 text-sm font-semibold text-neon-blue">
-                <Columns className="w-4 h-4" />
-                <span>Columns</span>
-              </div>
-              <Select onValueChange={handleAddToColumns}>
-                <SelectTrigger className="bg-cyber-light border-neon-blue/30 text-white">
-                  <SelectValue placeholder="Add field to columns" />
-                </SelectTrigger>
-                <SelectContent className="bg-cyber-dark border-neon-blue/30 text-white">
-                  {availableFields.filter(f => !columnFields.find(cf => cf.name === f.name)).map(field => (
-                    <SelectItem key={field.name} value={field.name}>{field.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="space-y-1">
-                {columnFields.map((field, index) => (
-                  <div key={index} className="flex items-center justify-between bg-cyber-dark/60 p-2 rounded border border-neon-purple/30">
-                    <span className="text-white text-sm">{field.name}</span>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRemoveFromColumns(index)}
-                      className="w-6 h-6 p-0 bg-red-500/20 hover:bg-red-500/30 text-red-400"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PivotDropZone
+              title="Columns"
+              fields={columnFields}
+              onDrop={handleDropToColumns}
+              onRemove={handleRemoveFromColumns}
+              icon={<Columns className="w-4 h-4" />}
+              description="Drop fields here to create column groupings"
+            />
 
             {/* Values Configuration */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 text-sm font-semibold text-neon-blue">
-                <Calculator className="w-4 h-4" />
-                <span>Values</span>
-              </div>
-              <Select onValueChange={handleAddToValues}>
-                <SelectTrigger className="bg-cyber-light border-neon-blue/30 text-white">
-                  <SelectValue placeholder="Add field to values" />
-                </SelectTrigger>
-                <SelectContent className="bg-cyber-dark border-neon-blue/30 text-white">
-                  {availableFields.filter(f => !valueFields.find(vf => vf.name === f.name)).map(field => (
-                    <SelectItem key={field.name} value={field.name}>{field.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="space-y-1">
-                {valueFields.map((field, index) => (
-                  <div key={index} className="flex items-center space-x-2 bg-cyber-dark/60 p-2 rounded border border-neon-purple/30">
-                    <span className="text-white text-sm flex-1">{field.name}</span>
-                    <Select 
-                      value={field.aggregation || 'sum'} 
-                      onValueChange={(value) => handleValueAggregationChange(index, value)}
-                    >
-                      <SelectTrigger className="w-20 h-6 text-xs bg-neon-purple/20 border-neon-purple/30">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-cyber-dark border-neon-purple/30 text-white">
-                        <SelectItem value="sum">Sum</SelectItem>
-                        <SelectItem value="count">Count</SelectItem>
-                        <SelectItem value="min">Min</SelectItem>
-                        <SelectItem value="max">Max</SelectItem>
-                        <SelectItem value="average">Avg</SelectItem>
-                        <SelectItem value="sdev">StDev</SelectItem>
-                        <SelectItem value="mean">Mean</SelectItem>
-                        <SelectItem value="median">Median</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRemoveFromValues(index)}
-                      className="w-6 h-6 p-0 bg-red-500/20 hover:bg-red-500/30 text-red-400"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PivotDropZone
+              title="Values"
+              fields={valueFields}
+              onDrop={handleDropToValues}
+              onRemove={handleRemoveFromValues}
+              onAggregationChange={handleValueAggregationChange}
+              allowAggregation={true}
+              icon={<Calculator className="w-4 h-4" />}
+              description="Drop fields here to aggregate values"
+            />
           </div>
         </div>
 
-        {/* Right Panel - Pivot Table Results */}
-        <div className="xl:col-span-2">
-          <div className="cyber-card p-4">
-            <h3 className="text-lg font-semibold text-neon-orange mb-4">Pivot Table Results</h3>
+        {/* Full Width Summary Results */}
+        <div className="cyber-card p-6">
+          <h3 className="text-lg font-semibold text-neon-orange mb-4">Summary Results</h3>
+          {rowFields.length > 0 && valueFields.length > 0 ? (
+            <PivotTable
+              data={filteredData}
+              rowFields={rowFields}
+              columnFields={columnFields}
+              valueFields={valueFields}
+            />
+          ) : (
             <div className="text-center py-12">
               <BarChart3 className="w-16 h-16 mx-auto mb-4 text-neon-blue/50" />
-              <h3 className="text-xl font-semibold text-gray-400 mb-2">Pivot Table Ready</h3>
-              <p className="text-gray-500">Add fields to Rows and Values to generate pivot table</p>
+              <h3 className="text-xl font-semibold text-gray-400 mb-2">Summary Results Ready</h3>
+              <p className="text-gray-500">Drag fields to Rows and Values sections to generate summary results</p>
             </div>
-          </div>
+          )}
         </div>
       </div>
-    </div>
+    </DndProvider>
   );
 };

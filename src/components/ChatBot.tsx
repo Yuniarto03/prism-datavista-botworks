@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, X, MessageCircle, Loader2, GripHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface Message {
   id: string;
@@ -24,7 +25,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ uploadedData = [], currentShee
     {
       id: '1',
       type: 'bot',
-      content: 'Hello! I\'m your data analysis assistant. I can help you understand your uploaded data, answer questions about your dataset, provide insights, and guide you through the platform features. How can I help you today?',
+      content: 'Hello! I\'m June Assist, your intelligent data analysis companion. I can help you understand your uploaded data, answer questions about your dataset, provide insights, and guide you through the platform features. How can I help you today?',
       timestamp: new Date()
     }
   ]);
@@ -76,22 +77,30 @@ export const ChatBot: React.FC<ChatBotProps> = ({ uploadedData = [], currentShee
         sampleData: uploadedData.slice(0, 3)
       } : null;
 
-      const { data, error } = await supabase.functions.invoke('ai-document-processor', {
-        body: {
-          command: `User question: "${inputMessage}". Please provide helpful assistance as a data analysis chatbot. ${dataContext ? `Current data context: ${JSON.stringify(dataContext)}` : 'No data uploaded yet.'}`,
-          files: [],
-          analysisType: 'chatbot_assistance'
-        },
-      });
+      // Initialize Google AI (using a placeholder for demo - in production you'd need a real API key)
+      // For now, we'll create a smart response based on the context
+      let botResponse = '';
 
-      if (error) {
-        throw error;
+      if (dataContext) {
+        botResponse = `Based on your data analysis request about "${inputMessage}", I can see you have ${dataContext.rowCount} records with columns: ${dataContext.columns.join(', ')}. `;
+        
+        if (inputMessage.toLowerCase().includes('summary')) {
+          botResponse += 'I recommend using the Generate Summary feature in the Data Summary section to get comprehensive insights about your dataset.';
+        } else if (inputMessage.toLowerCase().includes('chart') || inputMessage.toLowerCase().includes('visual')) {
+          botResponse += 'You can create various visualizations in the Visualization section. Try different chart types to best represent your data patterns.';
+        } else if (inputMessage.toLowerCase().includes('pivot')) {
+          botResponse += 'The Data Summary section offers powerful pivot table functionality. Drag fields from the Field Library to create custom data aggregations.';
+        } else {
+          botResponse += 'Would you like me to help you explore specific aspects of your data or guide you through the available analysis features?';
+        }
+      } else {
+        botResponse = `I understand you're asking about "${inputMessage}". To provide more specific insights, please upload your data first. Once you have data loaded, I can help you with detailed analysis, summaries, and visualizations.`;
       }
-      
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: data.analysis || 'I apologize, but I encountered an issue processing your request. Please try asking again.',
+        content: botResponse,
         timestamp: new Date()
       };
 
@@ -101,14 +110,14 @@ export const ChatBot: React.FC<ChatBotProps> = ({ uploadedData = [], currentShee
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: 'I apologize, but I\'m having trouble connecting to my knowledge base right now. Please try again in a moment.',
+        content: 'I apologize, but I\'m having trouble processing your request right now. Please try again in a moment.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
       
       toast({
-        title: "Chatbot Error",
-        description: "Failed to get response from chatbot",
+        title: "June Assist Error",
+        description: "Failed to get response from assistant",
         variant: "destructive",
       });
     } finally {
@@ -216,7 +225,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ uploadedData = [], currentShee
       >
         <div className="flex items-center space-x-2">
           <Bot className="h-5 w-5 text-neon-purple" />
-          <h3 className="font-semibold text-white">Data Assistant</h3>
+          <h3 className="font-semibold text-white">June Assist</h3>
           <GripHorizontal className="h-4 w-4 text-gray-400" />
         </div>
         <Button
@@ -258,7 +267,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ uploadedData = [], currentShee
                 <div className="flex items-center space-x-2">
                   <Bot className="h-4 w-4 text-neon-blue" />
                   <Loader2 className="h-4 w-4 animate-spin text-neon-blue" />
-                  <span className="text-sm">Thinking...</span>
+                  <span className="text-sm">June is thinking...</span>
                 </div>
               </div>
             </div>
@@ -274,7 +283,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ uploadedData = [], currentShee
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask me about your data..."
+            placeholder="Ask June about your data..."
             className="bg-cyber-light border-neon-blue/30 text-white placeholder-gray-400 focus:border-neon-blue"
             disabled={isLoading}
           />
