@@ -110,16 +110,16 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                   <SidebarMenuButton
                     onClick={() => onTabChange(item.id)}
                     className={`
-                      group relative overflow-hidden rounded-lg p-3 transition-all duration-300
+                      group relative overflow-hidden rounded-lg p-3 transition-all duration-300 w-full min-h-[60px]
                       ${activeTab === item.id 
                         ? 'bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 border border-neon-blue/50' 
                         : 'hover:bg-cyber-light/50 hover:border hover:border-neon-blue/30'
                       }
                     `}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-start space-x-3 w-full">
                       <div className={`
-                        w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300
+                        w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 flex-shrink-0
                         ${activeTab === item.id 
                           ? 'bg-gradient-to-br from-neon-blue to-neon-purple animate-glow-pulse' 
                           : 'bg-cyber-light group-hover:bg-gradient-to-br group-hover:from-neon-blue/50 group-hover:to-neon-purple/50'
@@ -127,11 +127,11 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                       `}>
                         <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'text-white' : item.color}`} />
                       </div>
-                      <div className="flex-1">
-                        <div className={`font-medium ${activeTab === item.id ? 'text-neon-blue glow-text' : 'text-white'}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium text-sm leading-tight ${activeTab === item.id ? 'text-neon-blue glow-text' : 'text-white'}`}>
                           {item.title}
                         </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
+                        <div className="text-xs text-gray-400 mt-1 leading-tight">
                           {item.description}
                         </div>
                       </div>
