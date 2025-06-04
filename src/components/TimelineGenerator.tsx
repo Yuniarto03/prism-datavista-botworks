@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, Plus, Download, Sparkles, Trash2, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, Plus, Download, Sparkles, Trash2, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,28 +16,11 @@ interface TimelineItem {
   description: string;
   category: string;
   status: 'planned' | 'in-progress' | 'completed';
-  percentage?: number;
 }
 
 interface TimelineGeneratorProps {
   data: any[];
 }
-
-const CATEGORY_COLORS = {
-  milestone: 'from-purple-500 to-purple-700',
-  task: 'from-blue-500 to-blue-700',
-  event: 'from-green-500 to-green-700',
-  deadline: 'from-red-500 to-red-700',
-  'data-point': 'from-yellow-500 to-yellow-700'
-};
-
-const CATEGORY_ICONS = {
-  milestone: '🎯',
-  task: '⚙️',
-  event: '🎉',
-  deadline: '⏰',
-  'data-point': '📊'
-};
 
 export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) => {
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
@@ -50,9 +33,9 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
     date: '',
     description: '',
     category: 'milestone',
-    status: 'planned' as const,
-    percentage: 0
+    status: 'planned' as const
   });
+  const [isEditing, setIsEditing] = useState<string>('');
   const { toast } = useToast();
 
   // Get available fields from data
@@ -91,11 +74,10 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
       date: String(row[selectedDateField] || new Date().toISOString().split('T')[0]),
       description: selectedDescField ? String(row[selectedDescField] || '') : `Generated from data row ${index + 1}`,
       category: 'data-point',
-      status: 'completed' as const,
-      percentage: Math.floor(Math.random() * 100)
+      status: 'completed' as const
     }));
 
-    setTimelineItems(generatedItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    setTimelineItems(generatedItems);
     toast({
       title: "Timeline Generated!",
       description: `Created ${generatedItems.length} timeline items from your data`,
@@ -123,8 +105,7 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
       date: '',
       description: '',
       category: 'milestone',
-      status: 'planned',
-      percentage: 0
+      status: 'planned'
     });
 
     toast({
@@ -171,6 +152,34 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
     });
   };
 
+  const getThemeClasses = () => {
+    switch (themeStyle) {
+      case 'classic':
+        return {
+          container: 'bg-gradient-to-br from-amber-50 to-orange-100',
+          item: 'bg-white border-amber-300 shadow-amber-100',
+          line: 'bg-amber-400',
+          dot: 'bg-amber-500'
+        };
+      case 'minimal':
+        return {
+          container: 'bg-gray-50',
+          item: 'bg-white border-gray-200 shadow-gray-100',
+          line: 'bg-gray-300',
+          dot: 'bg-gray-400'
+        };
+      default: // modern
+        return {
+          container: 'bg-gradient-to-br from-cyber-dark to-cyber-gray',
+          item: 'bg-cyber-light border-neon-blue/30 shadow-neon-blue/10',
+          line: 'bg-neon-blue',
+          dot: 'bg-neon-purple'
+        };
+    }
+  };
+
+  const themeClasses = getThemeClasses();
+
   if (data.length === 0) {
     return (
       <div className="text-center py-12">
@@ -214,7 +223,7 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Configuration Panel */}
           <div className="lg:col-span-1 space-y-6">
             {/* Field Selection */}
@@ -250,7 +259,7 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 block">Description Field</label>
+                  <label className="text-sm font-medium text-gray-300 mb-2 block">Description Field (Optional)</label>
                   <Select value={selectedDescField} onValueChange={setSelectedDescField}>
                     <SelectTrigger className="bg-cyber-light border-neon-blue/30 text-white">
                       <SelectValue placeholder="Select description field" />
@@ -319,15 +328,6 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
                     </SelectContent>
                   </Select>
                 </div>
-                <Input
-                  type="number"
-                  placeholder="Percentage (0-100)"
-                  value={newItem.percentage}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, percentage: parseInt(e.target.value) || 0 }))}
-                  className="bg-cyber-light border-neon-blue/30 text-white"
-                  min="0"
-                  max="100"
-                />
                 <Button
                   onClick={handleAddItem}
                   className="w-full bg-neon-green/20 hover:bg-neon-green/30 text-neon-green border border-neon-green/30"
@@ -340,8 +340,8 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
           </div>
 
           {/* Timeline Display */}
-          <div className="lg:col-span-3">
-            <div className="cyber-card p-6 min-h-[700px] bg-gradient-to-br from-gray-900 to-black">
+          <div className="lg:col-span-2">
+            <div className={`cyber-card p-6 ${themeClasses.container} min-h-[600px]`}>
               <h3 className="text-lg font-semibold text-neon-blue mb-6">Timeline Visualization</h3>
               
               {timelineItems.length === 0 ? (
@@ -352,51 +352,38 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
                 </div>
               ) : (
                 <div className="relative">
-                  {/* Main Timeline Flow */}
-                  <div className="flex flex-wrap items-center justify-center gap-8 mb-8">
-                    {timelineItems.slice(0, 5).map((item, index) => (
-                      <div key={item.id} className="flex items-center">
-                        {/* Step Badge */}
-                        <div className={`
-                          relative bg-gradient-to-r ${CATEGORY_COLORS[item.category as keyof typeof CATEGORY_COLORS]} 
-                          text-white px-6 py-3 text-lg font-bold clip-path-arrow min-w-[120px] text-center
-                        `}>
-                          STEP {index + 1}
-                        </div>
-                        
-                        {/* Arrow between steps */}
-                        {index < Math.min(timelineItems.length - 1, 4) && (
-                          <ChevronRight className="w-6 h-6 text-gray-400 mx-2" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Detailed Timeline Items */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Timeline Line */}
+                  <div className={`absolute left-8 top-0 bottom-0 w-0.5 ${themeClasses.line}`} />
+                  
+                  {/* Timeline Items */}
+                  <div className="space-y-6">
                     {timelineItems.map((item, index) => (
-                      <div key={item.id} className="relative">
-                        {/* Percentage Circle */}
-                        <div className="absolute -top-4 -right-4 z-10">
-                          <div className={`
-                            w-16 h-16 rounded-full bg-gradient-to-br ${CATEGORY_COLORS[item.category as keyof typeof CATEGORY_COLORS]}
-                            flex items-center justify-center text-white font-bold text-lg shadow-lg
-                          `}>
-                            {item.percentage || Math.floor(Math.random() * 100)}%
-                          </div>
-                        </div>
-
-                        {/* Main Card */}
-                        <div className={`
-                          bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 border-2 
-                          ${item.status === 'completed' ? 'border-green-500' : 
-                            item.status === 'in-progress' ? 'border-yellow-500' : 'border-blue-500'}
-                          shadow-lg hover:shadow-xl transition-all duration-300 min-h-[250px]
-                        `}>
-                          {/* Category Icon */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="text-3xl">
-                              {CATEGORY_ICONS[item.category as keyof typeof CATEGORY_ICONS]}
+                      <div key={item.id} className="relative flex items-start">
+                        {/* Timeline Dot */}
+                        <div className={`w-4 h-4 rounded-full ${themeClasses.dot} border-2 border-white shadow-lg z-10`} />
+                        
+                        {/* Timeline Content */}
+                        <div className={`ml-6 flex-1 p-4 rounded-lg border shadow-lg ${themeClasses.item}`}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <h4 className="font-semibold text-lg text-white">{item.title}</h4>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  item.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                  item.status === 'in-progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-blue-500/20 text-blue-400'
+                                }`}>
+                                  {item.status}
+                                </span>
+                                <span className="px-2 py-1 rounded text-xs bg-neon-purple/20 text-neon-purple">
+                                  {item.category}
+                                </span>
+                              </div>
+                              <p className="text-gray-300 mb-2">{item.description}</p>
+                              <div className="flex items-center text-sm text-gray-400">
+                                <Clock className="w-4 h-4 mr-1" />
+                                {new Date(item.date).toLocaleDateString()}
+                              </div>
                             </div>
                             <Button
                               onClick={() => handleDeleteItem(item.id)}
@@ -405,48 +392,6 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
-                          </div>
-
-                          {/* Content */}
-                          <h4 className="text-lg font-semibold text-white mb-2 line-clamp-2">
-                            {item.title}
-                          </h4>
-                          
-                          <p className="text-gray-300 text-sm mb-4 line-clamp-3">
-                            {item.description}
-                          </p>
-
-                          {/* Progress Stats */}
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-400">Category:</span>
-                              <span className="text-neon-blue capitalize">{item.category}</span>
-                            </div>
-                            
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-400">Status:</span>
-                              <span className={`
-                                px-2 py-1 rounded text-xs font-medium
-                                ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                                  item.status === 'in-progress' ? 'bg-yellow-500/20 text-yellow-400' :
-                                  'bg-blue-500/20 text-blue-400'}
-                              `}>
-                                {item.status}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center text-sm text-gray-400">
-                              <Clock className="w-4 h-4 mr-1" />
-                              {new Date(item.date).toLocaleDateString()}
-                            </div>
-
-                            {/* Progress Bar */}
-                            <div className="w-full bg-gray-700 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full bg-gradient-to-r ${CATEGORY_COLORS[item.category as keyof typeof CATEGORY_COLORS]}`}
-                                style={{ width: `${item.percentage || Math.floor(Math.random() * 100)}%` }}
-                              />
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -458,24 +403,6 @@ export const TimelineGenerator: React.FC<TimelineGeneratorProps> = ({ data }) =>
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        .clip-path-arrow {
-          clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%, 20px 50%);
-        }
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .line-clamp-3 {
-          display: -webkit-box;
-          -webkit-line-clamp: 3;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
     </DndProvider>
   );
 };

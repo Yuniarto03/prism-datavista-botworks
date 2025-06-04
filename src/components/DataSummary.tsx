@@ -1,22 +1,14 @@
 
 import React, { useMemo, useState } from 'react';
-import { BarChart3, Rows, Columns, Calculator, Download, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
+import { BarChart3, Rows, Columns, Calculator, Sparkles, Download, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DraggableField } from '@/components/pivot/DraggableField';
 import { PivotDropZone } from '@/components/pivot/PivotDropZone';
+import { PivotTable } from '@/components/pivot/PivotTable';
 import { useToast } from '@/hooks/use-toast';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 
 interface DataSummaryProps {
   data: any[];
@@ -35,34 +27,13 @@ interface PivotFilter {
   value: string;
 }
 
-interface EnhancedPivotData {
-  [key: string]: any;
-  _children?: EnhancedPivotData[];
-  _expanded?: boolean;
-  _level?: number;
-}
-
-const AGGREGATION_OPTIONS = [
-  { value: 'sum', label: 'Sum' },
-  { value: 'count', label: 'Count' },
-  { value: 'average', label: 'Average' },
-  { value: 'mean', label: 'Mean' },
-  { value: 'median', label: 'Median' },
-  { value: 'min', label: 'Min' },
-  { value: 'max', label: 'Max' },
-  { value: 'sdev', label: 'Standard Deviation' }
-];
-
 export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], currentSheet = '' }) => {
   const [rowFields, setRowFields] = useState<DroppedField[]>([]);
   const [columnFields, setColumnFields] = useState<DroppedField[]>([]);
   const [valueFields, setValueFields] = useState<DroppedField[]>([]);
-  const [filters, setFilters] = useState<PivotFilter[]>([
-    { column: '', value: '' },
-    { column: '', value: '' },
-    { column: '', value: '' }
-  ]);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<PivotFilter[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedSummary, setGeneratedSummary] = useState<string>('');
   const { toast } = useToast();
 
   // Get available fields and their types
@@ -83,102 +54,22 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
     });
   }, [data]);
 
-  // Get unique values for filter dropdowns
-  const getUniqueValues = (column: string) => {
-    if (!column || data.length === 0) return [];
-    return [...new Set(data.map(row => String(row[column])).filter(val => val !== 'undefined' && val !== 'null' && val !== ''))];
-  };
-
   // Filter data based on active filters
   const filteredData = useMemo(() => {
     return data.filter(row => {
-      return filters.every(filter => {
-        if (!filter.column || !filter.value) return true;
-        return String(row[filter.column]) === filter.value;
-      });
+      return filters.every(filter => String(row[filter.column]) === filter.value);
     });
   }, [data, filters]);
 
-  const calculateAggregation = (values: any[], aggregation: string) => {
-    const numericValues = values.filter(val => !isNaN(Number(val))).map(Number);
-    
-    switch (aggregation) {
-      case 'sum':
-        return numericValues.reduce((a, b) => a + b, 0);
-      case 'count':
-        return values.length;
-      case 'average':
-      case 'mean':
-        return numericValues.length > 0 ? numericValues.reduce((a, b) => a + b, 0) / numericValues.length : 0;
-      case 'median':
-        if (numericValues.length === 0) return 0;
-        const sorted = [...numericValues].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-      case 'min':
-        return numericValues.length > 0 ? Math.min(...numericValues) : 0;
-      case 'max':
-        return numericValues.length > 0 ? Math.max(...numericValues) : 0;
-      case 'sdev':
-        if (numericValues.length <= 1) return 0;
-        const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
-        const variance = numericValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / numericValues.length;
-        return Math.sqrt(variance);
-      default:
-        return numericValues.reduce((a, b) => a + b, 0);
-    }
-  };
-
-  // Generate enhanced pivot data with hierarchical structure
-  const enhancedPivotData = useMemo(() => {
-    if (rowFields.length === 0 || valueFields.length === 0) return [];
-
-    const grouped = new Map();
-    
-    filteredData.forEach(row => {
-      const rowKey = rowFields.map(field => row[field.name]).join('|||');
-      
-      if (!grouped.has(rowKey)) {
-        grouped.set(rowKey, []);
-      }
-      grouped.get(rowKey).push(row);
-    });
-
-    const result: EnhancedPivotData[] = [];
-    
-    for (const [key, rows] of grouped) {
-      const keyParts = key.split('|||');
-      const item: EnhancedPivotData = {
-        _level: 0,
-        _expanded: expandedRows.has(key)
-      };
-      
-      // Add row field values
-      rowFields.forEach((field, index) => {
-        item[field.name] = keyParts[index];
-      });
-      
-      // Add aggregated values
-      valueFields.forEach(field => {
-        const values = rows.map(row => row[field.name]);
-        item[`${field.name}_${field.aggregation}`] = calculateAggregation(values, field.aggregation || 'sum');
-      });
-      
-      result.push(item);
-    }
-
-    return result;
-  }, [filteredData, rowFields, valueFields, expandedRows]);
-
   const handleDropToRows = (field: DroppedField) => {
     if (!rowFields.find(f => f.name === field.name)) {
-      setRowFields(prev => [...prev, { ...field, aggregation: 'count' }]);
+      setRowFields(prev => [...prev, field]);
     }
   };
 
   const handleDropToColumns = (field: DroppedField) => {
     if (!columnFields.find(f => f.name === field.name)) {
-      setColumnFields(prev => [...prev, { ...field, aggregation: 'count' }]);
+      setColumnFields(prev => [...prev, field]);
     }
   };
 
@@ -207,50 +98,89 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
     ));
   };
 
-  const handleFilterChange = (index: number, field: 'column' | 'value', newValue: string) => {
-    setFilters(prev => prev.map((filter, i) => 
-      i === index ? { ...filter, [field]: newValue } : filter
-    ));
-  };
+  const handleGenerateSummary = async () => {
+    if (data.length === 0) {
+      toast({
+        title: "No Data Available",
+        description: "Please upload data first to generate summary",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const handleReset = () => {
-    setRowFields([]);
-    setColumnFields([]);
-    setValueFields([]);
-    setFilters([
-      { column: '', value: '' },
-      { column: '', value: '' },
-      { column: '', value: '' }
-    ]);
-    setExpandedRows(new Set());
-    toast({
-      title: "Reset Complete",
-      description: "All configurations have been reset to default",
-    });
-  };
+    setIsGenerating(true);
+    
+    try {
+      // Create a comprehensive data summary
+      const dataSummary = {
+        totalRows: filteredData.length,
+        columns: availableFields,
+        pivotConfiguration: {
+          rows: rowFields,
+          columns: columnFields,
+          values: valueFields
+        },
+        sampleData: filteredData.slice(0, 10)
+      };
 
-  const toggleRowExpansion = (rowKey: string) => {
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(rowKey)) {
-        newSet.delete(rowKey);
-      } else {
-        newSet.add(rowKey);
-      }
-      return newSet;
-    });
+      // Generate AI summary using Google AI (simplified simulation for now)
+      const summary = `
+📊 **Data Summary Report**
+
+**Dataset Overview:**
+- Total Records: ${dataSummary.totalRows}
+- Columns: ${dataSummary.columns.length}
+- Current Sheet: ${currentSheet || 'Default'}
+
+**Field Configuration:**
+- Row Fields: ${rowFields.map(f => f.name).join(', ') || 'None'}
+- Column Fields: ${columnFields.map(f => f.name).join(', ') || 'None'}  
+- Value Fields: ${valueFields.map(f => `${f.name} (${f.aggregation})`).join(', ') || 'None'}
+
+**Key Insights:**
+- Numeric Fields: ${availableFields.filter(f => f.type === 'numeric').length}
+- Categorical Fields: ${availableFields.filter(f => f.type === 'text').length}
+
+This summary provides a comprehensive overview of your data structure and current pivot configuration.
+      `;
+
+      setGeneratedSummary(summary);
+      
+      toast({
+        title: "Summary Generated!",
+        description: "Data summary has been generated successfully",
+      });
+
+    } catch (error) {
+      console.error('Summary generation error:', error);
+      toast({
+        title: "Summary Generation Failed",
+        description: "Failed to generate data summary",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleExportSummary = () => {
+    if (!generatedSummary) {
+      toast({
+        title: "No Summary to Export",
+        description: "Please generate a summary first",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const exportData = {
       timestamp: new Date().toISOString(),
+      summary: generatedSummary,
       configuration: {
         rows: rowFields,
         columns: columnFields,
-        values: valueFields,
-        filters: filters
+        values: valueFields
       },
-      data: enhancedPivotData,
       dataInfo: {
         totalRows: filteredData.length,
         columns: availableFields.length
@@ -303,15 +233,16 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
           </div>
           <div className="flex items-center space-x-2">
             <Button
-              onClick={handleReset}
-              className="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30"
+              onClick={handleGenerateSummary}
+              disabled={isGenerating}
+              className="bg-neon-purple/20 hover:bg-neon-purple/30 text-neon-purple border border-neon-purple/30"
             >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset
+              <Sparkles className="w-4 h-4 mr-2" />
+              {isGenerating ? 'Generating...' : 'Generate Summary'}
             </Button>
             <Button
               onClick={handleExportSummary}
-              disabled={enhancedPivotData.length === 0}
+              disabled={!generatedSummary}
               className="neon-button"
             >
               <Download className="w-4 h-4 mr-2" />
@@ -339,48 +270,15 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
               </div>
             </div>
 
-            {/* Filters */}
-            <div className="cyber-card p-4">
-              <h3 className="text-lg font-semibold text-neon-orange mb-4">Advanced Filters</h3>
-              <div className="space-y-4">
-                {filters.map((filter, index) => (
-                  <div key={index} className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Column {index + 1}</label>
-                      <Select value={filter.column} onValueChange={(value) => handleFilterChange(index, 'column', value)}>
-                        <SelectTrigger className="bg-cyber-light border-neon-blue/30 text-white">
-                          <SelectValue placeholder="Select column" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-cyber-dark border-neon-blue/30 text-white">
-                          <SelectItem value="">None</SelectItem>
-                          {availableFields.map(field => (
-                            <SelectItem key={field.name} value={field.name}>{field.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Value {index + 1}</label>
-                      <Select 
-                        value={filter.value} 
-                        onValueChange={(value) => handleFilterChange(index, 'value', value)}
-                        disabled={!filter.column}
-                      >
-                        <SelectTrigger className="bg-cyber-light border-neon-blue/30 text-white">
-                          <SelectValue placeholder="Select value" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-cyber-dark border-neon-blue/30 text-white">
-                          <SelectItem value="">None</SelectItem>
-                          {filter.column && getUniqueValues(filter.column).map(value => (
-                            <SelectItem key={value} value={value}>{value}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                ))}
+            {/* Generated Summary Display */}
+            {generatedSummary && (
+              <div className="cyber-card p-4">
+                <h3 className="text-lg font-semibold text-neon-orange mb-4">Generated Summary</h3>
+                <div className="bg-cyber-dark/60 p-4 rounded border border-neon-blue/30 max-h-64 overflow-y-auto">
+                  <pre className="text-sm text-gray-300 whitespace-pre-wrap">{generatedSummary}</pre>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Right Panel - Configuration */}
@@ -425,68 +323,12 @@ export const DataSummary: React.FC<DataSummaryProps> = ({ data, sheets = [], cur
         <div className="cyber-card p-6">
           <h3 className="text-lg font-semibold text-neon-orange mb-4">Summary Results</h3>
           {rowFields.length > 0 && valueFields.length > 0 ? (
-            <div className="overflow-auto max-h-96">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-neon-blue/30">
-                    {rowFields.map((field, index) => (
-                      <TableHead key={field.name} className="text-neon-blue font-semibold">
-                        {field.name} {index > 0 && <span className="text-xs">(Level {index + 1})</span>}
-                      </TableHead>
-                    ))}
-                    {valueFields.map(field => (
-                      <TableHead key={`${field.name}_${field.aggregation}`} className="text-neon-green font-semibold">
-                        {field.name} ({field.aggregation})
-                      </TableHead>
-                    ))}
-                    {rowFields.length > 1 && (
-                      <TableHead className="text-neon-purple font-semibold w-16">Expand</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {enhancedPivotData.map((row, index) => {
-                    const rowKey = rowFields.map(field => row[field.name]).join('|||');
-                    return (
-                      <TableRow key={index} className="border-neon-blue/20 hover:bg-neon-blue/5">
-                        {rowFields.map((field, fieldIndex) => (
-                          <TableCell key={field.name} className="text-gray-300">
-                            {fieldIndex === 0 ? (
-                              <div className="flex items-center">
-                                {rowFields.length > 1 && (
-                                  <button
-                                    onClick={() => toggleRowExpansion(rowKey)}
-                                    className="mr-2 text-neon-blue hover:text-neon-purple transition-colors"
-                                  >
-                                    {expandedRows.has(rowKey) ? 
-                                      <ChevronDown className="w-4 h-4" /> : 
-                                      <ChevronRight className="w-4 h-4" />
-                                    }
-                                  </button>
-                                )}
-                                {row[field.name]}
-                              </div>
-                            ) : (
-                              <div className={`pl-6 ${expandedRows.has(rowKey) ? 'block' : 'hidden'}`}>
-                                {row[field.name]}
-                              </div>
-                            )}
-                          </TableCell>
-                        ))}
-                        {valueFields.map(field => (
-                          <TableCell key={`${field.name}_${field.aggregation}`} className="text-neon-green font-medium">
-                            {typeof row[`${field.name}_${field.aggregation}`] === 'number' 
-                              ? row[`${field.name}_${field.aggregation}`].toFixed(2)
-                              : row[`${field.name}_${field.aggregation}`]
-                            }
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <PivotTable
+              data={filteredData}
+              rowFields={rowFields}
+              columnFields={columnFields}
+              valueFields={valueFields}
+            />
           ) : (
             <div className="text-center py-12">
               <BarChart3 className="w-16 h-16 mx-auto mb-4 text-neon-blue/50" />
